@@ -639,7 +639,6 @@ func (t *TrackerDamon) Stop() {
 }
 
 func (t *TrackerDamon) ResetCounters() {
-	// TODO: lock!? so that perfReader wouldn't need lock on every line?
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 	if t.lostEvents > 0 {
@@ -784,8 +783,10 @@ func (t *TrackerDamon) bpftraceReader() error {
 			}
 		}
 	}
+	t.mutex.Lock()
 	close(t.toBpftraceReader)
 	t.toBpftraceReader = nil
+	t.mutex.Unlock()
 	return nil
 }
 
@@ -839,8 +840,10 @@ func (t *TrackerDamon) perfReader() error {
 				log.Debugf("TrackerDamon.perfReader: perf parse error: %s\n", err)
 			}
 		case <-t.toPerfReader:
+			t.mutex.Lock()
 			close(t.toPerfReader)
 			t.toPerfReader = nil
+			t.mutex.Unlock()
 			if err := cmd.Process.Kill(); err != nil {
 				log.Debugf("TrackerDamon.perfReader: perf kill error: %s\n", err)
 			}
