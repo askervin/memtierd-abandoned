@@ -1025,7 +1025,7 @@ interactive() { # script API
         if [ "${commands[0]}" == "exit" ]; then
             break
         fi
-        "${commands[@]}"
+        eval "${commands[@]}"
     done
     INTERACTIVE_MODE=$(( INTERACTIVE_MODE - 1 ))
 }
