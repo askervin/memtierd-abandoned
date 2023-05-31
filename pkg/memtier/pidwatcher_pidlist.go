@@ -60,6 +60,9 @@ func (w *PidWatcherPidlist) SetPidListener(l PidListener) {
 }
 
 func (w *PidWatcherPidlist) Poll() error {
+	if w.config == nil {
+		return fmt.Errorf("pidwatcher pidlist: tried to poll without a configuration")
+	}
 	if w.pidListener == nil {
 		log.Warnf("pidwatcher pidlist: poll skips reporting pids %v because nobody is listening", w.config.Pids)
 		return nil
@@ -69,6 +72,9 @@ func (w *PidWatcherPidlist) Poll() error {
 }
 
 func (w *PidWatcherPidlist) Start() error {
+	if w.config == nil {
+		return fmt.Errorf("pidwatcher pidlist: tried to start without a configuration")
+	}
 	if w.pidListener == nil {
 		log.Warnf("pidwatcher pidlist: skip reporting pids %v because nobody is listening", w.config.Pids)
 		return nil

@@ -161,6 +161,7 @@ func (p *Prompt) RunCmdString(cmdString string) CommandStatus {
 }
 
 func (p *Prompt) Interact() {
+	p.quit = false
 	for !p.quit {
 		p.output(p.ps1)
 		cmdString, err := p.r.ReadString(byte('\n'))

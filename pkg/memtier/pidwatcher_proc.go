@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -33,6 +34,7 @@ type PidWatcherProc struct {
 	pidsReported map[int]setMemberType
 	pidListener  PidListener
 	stop         bool
+	mutex        sync.Mutex
 }
 
 func init() {
@@ -118,6 +120,13 @@ func (w *PidWatcherProc) loop(singleshot bool) {
 			}
 		}
 
+		// If requested to stop, quit without informing listeners.
+		if w.stop {
+			break
+		}
+
+		w.mutex.Lock()
+
 		// Gather found pids that have not been reported.
 		newPids := []int{}
 		for foundPid := range pidsFound {
@@ -136,10 +145,7 @@ func (w *PidWatcherProc) loop(singleshot bool) {
 			}
 		}
 
-		// If requested to stop, quit without informing listeners.
-		if w.stop {
-			break
-		}
+		w.mutex.Unlock()
 
 		// Report if there are any changes in pids.
 		if len(newPids) > 0 {

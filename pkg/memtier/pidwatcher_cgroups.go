@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -36,6 +37,7 @@ type PidWatcherCgroups struct {
 	pidsReported map[int]setMemberType
 	pidListener  PidListener
 	stop         bool
+	mutex        sync.Mutex
 }
 
 func init() {
@@ -94,6 +96,10 @@ func (w *PidWatcherCgroups) Stop() {
 func (w *PidWatcherCgroups) loop(singleshot bool) {
 	log.Debugf("PidWatcherCgroups: online\n")
 	defer log.Debugf("PidWatcherCgroups: offline\n")
+	if w.config == nil {
+		log.Errorf("PidWatcherCgroups: cannot start loop without configuration")
+		return
+	}
 	ticker := time.NewTicker(time.Duration(w.config.IntervalMs) * time.Millisecond)
 	defer ticker.Stop()
 	for {
@@ -118,6 +124,13 @@ func (w *PidWatcherCgroups) loop(singleshot bool) {
 			}
 		}
 
+		// If requested to stop, quit without informing listeners.
+		if w.stop {
+			break
+		}
+
+		w.mutex.Lock()
+
 		// Gather found pids that have not been reported.
 		newPids := []int{}
 		for foundPid := range pidsFound {
@@ -136,10 +149,7 @@ func (w *PidWatcherCgroups) loop(singleshot bool) {
 			}
 		}
 
-		// If requested to stop, quit without informing listeners.
-		if w.stop {
-			break
-		}
+		w.mutex.Unlock()
 
 		// Report if there are any changes in pids.
 		if len(newPids) > 0 {
