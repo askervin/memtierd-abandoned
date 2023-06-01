@@ -105,27 +105,33 @@ func (m *Mover) Start() error {
 		}
 	}
 	m.mutex.Lock()
-	defer m.mutex.Unlock()
 	if m.toTaskHandler == nil {
 		m.toTaskHandler = make(chan taskHandlerCmd, 8)
 		go m.taskHandler()
 	}
+	m.mutex.Unlock()
 	return nil
 }
 
 func (m *Mover) Stop() {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	if m.toTaskHandler != nil {
 		m.toTaskHandler <- thQuit
 	}
 }
 
 func (m *Mover) Pause() {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	if m.toTaskHandler != nil {
 		m.toTaskHandler <- thPause
 	}
 }
 
 func (m *Mover) Continue() {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	if m.toTaskHandler != nil {
 		m.toTaskHandler <- thContinue
 	}
@@ -165,6 +171,8 @@ func (m *Mover) RemoveTask(taskId int) {
 func (m *Mover) taskHandler() {
 	log.Debugf("Mover: online\n")
 	defer func() {
+		m.mutex.Lock()
+		defer m.mutex.Unlock()
 		close(m.toTaskHandler)
 		m.toTaskHandler = nil
 		log.Debugf("Mover: offline\n")

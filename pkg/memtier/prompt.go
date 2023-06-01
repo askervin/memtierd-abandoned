@@ -26,6 +26,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 type Cmd struct {
@@ -49,6 +50,7 @@ type Prompt struct {
 	ps1          string
 	echo         bool
 	quit         bool
+	mutex        sync.Mutex
 }
 
 type CommandStatus int
@@ -113,6 +115,8 @@ func (p *Prompt) RunCmdSlice(cmdSlice []string) CommandStatus {
 }
 
 func (p *Prompt) RunCmdString(cmdString string) CommandStatus {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 	var err error
 	// If command has "|", run the left-hand-side of the
 	// pipe in a shell and pipe the output of the

@@ -221,5 +221,8 @@ func findFiles(root string, filename string) []string {
 }
 
 func (w *PidWatcherCgroups) Dump([]string) string {
-	return fmt.Sprintf("%+v", w)
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
+	return fmt.Sprintf("PidWatcherCgroups{config:%v,pidsReported:%v,pidListener:%v,stop:%v}",
+		w.config, w.pidsReported, w.pidListener, w.stop)
 }

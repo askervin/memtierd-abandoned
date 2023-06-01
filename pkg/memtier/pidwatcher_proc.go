@@ -94,7 +94,10 @@ func (w *PidWatcherProc) Stop() {
 }
 
 func (w *PidWatcherProc) Dump([]string) string {
-	return fmt.Sprintf("%+v", w)
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
+	return fmt.Sprintf("PidWatcherProc{config:%v,pidsReported:%v,pidListener:%v,stop:%v",
+		w.config, w.pidsReported, w.pidListener, w.stop)
 }
 
 func (w *PidWatcherProc) loop(singleshot bool) {

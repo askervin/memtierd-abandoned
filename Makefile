@@ -252,6 +252,10 @@ else
             exit $$rc
 endif
 
+fuzz-test fuzztest:
+	$(Q)cd pkg/memtier && \
+	$(GO_TEST) -cover -race -fuzz=Fuzz -fuzztime=10s -parallel=4
+
 race-test racetest:
 ifndef WHAT
 	$(Q)$(GO_TEST) -race -coverprofile=coverage.txt -covermode=atomic \

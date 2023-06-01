@@ -12,27 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package memtier
 
 import (
 	"bufio"
-	_ "bytes"
+	"bytes"
 	"fmt"
 	"os"
 	"strings"
 	_ "sync"
 	"testing"
-
-	"github.com/intel/memtierd/pkg/memtier"
+	"time"
 )
 
 func FuzzPrompt(f *testing.F) {
 	pidwatcherCommonArgs := " -listener log -config-dump -poll -start -stop -dump"
 	trackerCommonArgs := " -config-dump -start -stop -dump"
 	policyCommonArgs := " -config-dump -start -stop -dump"
+	routinesCommonArgs := " -ls -use 0 -config-dump -start -stop -dump"
+	moverCommonArgs := " -config-dump -start -tasks"
+	pagesCommonArgs := fmt.Sprintf(" -pid %d ", os.Getpid())
 	testcases := []string{
 		"help",
 		"nop",
+		"pages -attrs Exclusive,Dirty,InHeap" + pagesCommonArgs,
+		"pages -node 0" + pagesCommonArgs,
+		"pages -pi 123456" + pagesCommonArgs,
+		"pages -si 123456" + pagesCommonArgs,
+		"pages -pr=5 -pm=5" + pagesCommonArgs,
+		"pages -ranges=c0000000000" + pagesCommonArgs,
 		"pidwatcher -ls",
 		"pidwatcher -create pidlist -config {\"Pids\":[42,4242]}" + pidwatcherCommonArgs,
 		"pidwatcher -create cgroups -config {\"IntervalMs\":10000,\"Cgroups\":[\"/sys/fs/cgroup/memtierd-test\"]}" + pidwatcherCommonArgs,
@@ -41,51 +49,47 @@ func FuzzPrompt(f *testing.F) {
 		"pidwatcher -create filter -config {}" + pidwatcherCommonArgs,
 		"policy -ls",
 		"policy -create age -config {\"IntervalMs\":10000}" + policyCommonArgs,
+		"routines -create statactions -config {\"IntervalMs\":10000}" + routinesCommonArgs,
 		"tracker -ls",
 		"tracker -create damon" + trackerCommonArgs,
 		"tracker -create idlepage" + trackerCommonArgs,
 		"tracker -create softdirty" + trackerCommonArgs,
-		"q",
-		"mover -pages-to 1",
+		"mover -config {\"IntervalMs\":50,\"Bandwidth\":1000} -pages-to 0" + moverCommonArgs,
+		"mover -pause -start -stop -pages-to 0 -tasks" + moverCommonArgs,
 		"stats",
+		"stats -f csv",
+		"stats -f txt",
+		"stats -le 10",
+		"stats -lm 10",
+		"stats -t events,move_pages",
+		"q",
 	}
 
 	for _, tc := range testcases {
 		f.Add(tc)
 	}
 
+	var promptOutBuf bytes.Buffer
+	promptOut := bufio.NewReadWriter(
+		bufio.NewReader(&promptOutBuf),
+		bufio.NewWriter(&promptOutBuf))
+	prompt := NewPrompt("memtierd-fuzzed> ", bufio.NewReader(strings.NewReader("")), promptOut.Writer)
+
 	f.Fuzz(func(t *testing.T, input string) {
-		// var promptInBuf bytes.Buffer
-		// var promptOutBuf bytes.Buffer
-		// var wg sync.WaitGroup
-		fmt.Printf("input: %q\n", input)
 		if strings.Contains(input, "|") {
 			// Do not fuzz inputs with pipes, as it would
 			// execute fuzzed strings in shell.
 			return
 		}
-		// promptIn := bufio.NewReadWriter(
-		// 	bufio.NewReader(&promptInBuf),
-		// 	bufio.NewWriter(&promptInBuf))
-		// promptOut := bufio.NewWriter(&promptOutBuf)
-		prompt := memtier.NewPrompt("memtierd-fuzzed> ", bufio.NewReader(strings.NewReader("")), bufio.NewWriter(os.Stderr))
-		prompt.SetEcho(true)
-
-		// promptIn.WriteString(input)
-		// if len(input) > 0 && input[len(input)-1] != '\n' {
-		//	promptIn.WriteString("\n")
-		// }
-		// promptIn.Flush()
-		// wg.Add(1)
-		// go func() {
-		// 	defer wg.Done()
-		// 	prompt.Interact()
-		// }()
-		// promptIn.WriteString("\nq\n")
-		// promptIn.Flush()
-		// wg.Wait()
+		t.Logf("input: %q\n", input)
 		prompt.RunCmdString(input)
-		// fmt.Printf("---response-begin---\n%s---response-end---\n", promptOutBuf.String())
+		time.Sleep(time.Millisecond)
+		out := []byte{}
+		if _, err := promptOut.Read(out); err == nil {
+			t.Logf("---response-begin---\n%s---response-end---\n", out)
+		} else {
+			t.Errorf("error reading output of input %q: %s", input, err)
+		}
 
 	})
 }

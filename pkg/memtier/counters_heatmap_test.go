@@ -15,7 +15,6 @@
 package memtier
 
 import (
-	"fmt"
 	"testing"
 	"time"
 )
@@ -46,7 +45,7 @@ func TestUpdateCountersBoundaryCheck(t *testing.T) {
 	timestamp := int64(0)
 	hm.UpdateFromCounters(&tcs0, timestamp)
 
-	fmt.Println(hm.Dump())
+	t.Logf(hm.Dump())
 
 	// Boundary value check: nil/non-nil
 	if hm.HeatRangeAt(4040, 0) != nil {
@@ -117,7 +116,7 @@ func TestUpdateCountersBoundaryCheck(t *testing.T) {
 	timestamp = 1 * int64(time.Second)
 	hm.UpdateFromCounters(&tcs1, timestamp)
 
-	fmt.Println(hm.Dump())
+	t.Logf(hm.Dump())
 }
 
 func TestUpdateCountersOverlappingRanges(t *testing.T) {
@@ -308,7 +307,7 @@ func TestUpdateCountersOverlappingRanges(t *testing.T) {
 				timestamp += tc.updateT - tc.origT
 			}
 			hm.UpdateFromCounters(&tc.update, timestamp)
-			fmt.Printf("%s:\n%s\n\n", tc.name, hm.Dump())
+			t.Logf("%s:\n%s\n\n", tc.name, hm.Dump())
 			for addr, expHeat := range tc.addrHeat {
 				obsHeat := hm.HeatRangeAt(1000, addr).heat
 				if !isEqualEnough(obsHeat, expHeat) {
@@ -318,7 +317,7 @@ func TestUpdateCountersOverlappingRanges(t *testing.T) {
 			for addr, expUpdated := range tc.addrUpdated {
 				obsUpdated := hm.HeatRangeAt(1000, addr).updated
 				if obsUpdated != expUpdated {
-					fmt.Printf("%s:\n%s\n\n", tc.name, hm.Dump())
+					t.Logf("%s:\n%s\n\n", tc.name, hm.Dump())
 					t.Errorf("unexpected updated at %x: expected %d, observed %d", addr, expUpdated, obsUpdated)
 				}
 			}

@@ -212,6 +212,8 @@ func (s *Stats) Store(entry interface{}) {
 }
 
 func (s *Stats) LastMove(pid int) *StatsMoved {
+	s.Lock()
+	defer s.Unlock()
 	spm, ok := s.pidMoves[pid]
 	if !ok {
 		return nil
@@ -220,6 +222,8 @@ func (s *Stats) LastMove(pid int) *StatsMoved {
 }
 
 func (s *Stats) LastMoveWithError(pid int) *StatsMoved {
+	s.Lock()
+	defer s.Unlock()
 	spm, ok := s.pidMoves[pid]
 	if !ok {
 		return nil
@@ -260,6 +264,8 @@ func (s *Stats) Dump(args []string) string {
 }
 
 func (s *Stats) tableEvents(format string) []string {
+	s.Lock()
+	defer s.Unlock()
 	lines := []string{"table: events"}
 	header := []interface{}{"count", "timeint[s]", "latest[s ago]", "name"}
 	headerFmt := map[string]string{
@@ -291,6 +297,8 @@ func (s *Stats) tableEvents(format string) []string {
 }
 
 func (s *Stats) tableProcessMadvise(format string) []string {
+	s.Lock()
+	defer s.Unlock()
 	lines := []string{"table: process_madvise syscalls"}
 	headers := []interface{}{"pid", "calls", "req[pages]", "ok[pages]", "ok[G]", "PAGEOUT[G]"}
 	headerFmt := map[string]string{
@@ -316,6 +324,8 @@ func (s *Stats) tableProcessMadvise(format string) []string {
 }
 
 func (s *Stats) tableMovePages(format string) []string {
+	s.Lock()
+	defer s.Unlock()
 	lines := []string{"table: move_pages syscalls"}
 	headers := []interface{}{"pid", "calls", "req[pages]", "ok[pages]", "moved[G]", "targetnode:moved[G]"}
 	headerFmt := map[string]string{
@@ -348,6 +358,8 @@ func (s *Stats) tableMovePages(format string) []string {
 }
 
 func (s *Stats) tableMovePagesErrors(format string) []string {
+	s.Lock()
+	defer s.Unlock()
 	lines := []string{"table: move_pages syscall errors in page statuses"}
 	headers := []interface{}{"pid", "pages", "size[G]", "errno", "error"}
 	headerFmt := map[string]string{
@@ -373,6 +385,8 @@ func (s *Stats) tableMovePagesErrors(format string) []string {
 }
 
 func (s *Stats) tableMemoryScans(format string) []string {
+	s.Lock()
+	defer s.Unlock()
 	lines := []string{"table: memory scans"}
 	headers := []interface{}{"pid", "scans", "tot[pages]", "avg[s]", "last", "max[s]", "avg[G]", "last[G]", "a+w[%%]", "last"}
 	headerFmt := map[string]string{
