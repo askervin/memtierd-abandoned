@@ -68,7 +68,7 @@ else
 endif
 
 # Release/end-to-end testing. Specify E2E_TESTS to override the default test set.
-E2E_RUN := reinstall_memtierd=1 test/e2e/run_tests.sh
+E2E_RUN := reinstall_memtierd=1 distro=debian-sid test/e2e/run_tests.sh
 
 # tar-related commands and options.
 TAR        := tar
@@ -269,9 +269,9 @@ else
             exit $$rc
 endif
 
-release-tests: e2e-tests
+release-test: e2e-test
 
-e2e-tests: build-static
+e2e-test: build-static
 	$(Q)tests="$(if $(E2E_TESTS),$(E2E_TESTS),test/e2e/memtierd.test-suite)"; \
 	$(E2E_RUN) $$tests; \
 	if [ "$$?" != "0" ]; then \
@@ -335,6 +335,20 @@ bin/memtierd: $(wildcard cmd/memtierd/*.go) \
 
 bin/meme: $(wildcard cmd/meme/*.go) $(wildcard pkg/version/*.go)
 
+help:
+	@echo "make [OPTION...] TARGET..."
+	@echo "Most popular OPTIONs:"
+	@echo "  DEBUG=1      include debug symbols"
+	@echo "  STATIC=1     build a statically linked binary (no libc dependency)"
+	@echo "  Q=\"\"       verbose output (see commands)"
+	@echo "Most popular TARGETs:"
+	@echo "  bin/memtierd build memtierd binary (default)"
+	@echo "  bin/meme     build memory execiser, a configurable test application (default)"
+	@echo "  test         run unit tests"
+	@echo "  fuzz-test    run fuzz tests"
+	@echo "  e2e-test     run e2e tests"
+
 # phony targets
-.PHONY: all build install clean test release-tests e2e-tests \
+.PHONY: all build install clean test release-test e2e-test \
+	fuzztest fuzz-test help \
 	format vet cyclomatic-check lint golangci-lint
