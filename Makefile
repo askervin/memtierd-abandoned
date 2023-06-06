@@ -70,6 +70,8 @@ endif
 # Release/end-to-end testing. Specify E2E_TESTS to override the default test set.
 E2E_RUN := reinstall_memtierd=1 distro=debian-sid test/e2e/run_tests.sh
 
+FUZZ_TIME ?= 10s
+
 # tar-related commands and options.
 TAR        := tar
 TAR_UPDATE := $(TAR) -uf
@@ -253,8 +255,9 @@ else
 endif
 
 fuzz-test fuzztest:
-	$(Q)cd pkg/memtier && \
-	$(GO_TEST) -cover -race -fuzz=Fuzz -fuzztime=10s -parallel=4
+	$(Q)echo "Fuzzing FUZZ_TIME=$(FUZZ_TIME) FUZZ_PROMPT_CREATE=$(FUZZ_PROMPT_CREATE)" && \
+	cd pkg/memtier && \
+	FUZZ_PROMPT_CREATE=$(FUZZ_PROMPT_CREATE) $(GO_TEST) -cover -race -fuzz=Fuzz -fuzztime=$(FUZZ_TIME) -parallel=4
 
 race-test racetest:
 ifndef WHAT

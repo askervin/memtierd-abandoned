@@ -20,12 +20,20 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	_ "sync"
 	"testing"
 	"time"
 )
 
 func FuzzPrompt(f *testing.F) {
+	fuzzPromptCreateEnv := os.Getenv("FUZZ_PROMPT_CREATE")
+	fuzzPromptCreate := true
+	if len(fuzzPromptCreateEnv) > 0 {
+		if strings.Contains("nN0", fuzzPromptCreateEnv) {
+			fuzzPromptCreate = false
+		} else if !strings.Contains("yY1", fuzzPromptCreateEnv) {
+			f.Errorf("invalid value in environment variable FUZZ_PROMPT_CREATE, expected one of yY1nN0")
+		}
+	}
 	pidwatcherCommonArgs := " -listener log -config-dump -poll -start -stop -dump"
 	trackerCommonArgs := " -config-dump -start -stop -dump"
 	policyCommonArgs := " -config-dump -start -stop -dump"
@@ -76,6 +84,9 @@ func FuzzPrompt(f *testing.F) {
 	prompt := NewPrompt("memtierd-fuzzed> ", bufio.NewReader(strings.NewReader("")), promptOut.Writer)
 
 	f.Fuzz(func(t *testing.T, input string) {
+		if !fuzzPromptCreate && strings.Contains(input, "-create") {
+			return
+		}
 		if strings.Contains(input, "|") {
 			// Do not fuzz inputs with pipes, as it would
 			// execute fuzzed strings in shell.
