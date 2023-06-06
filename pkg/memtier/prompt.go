@@ -51,6 +51,7 @@ type Prompt struct {
 	echo         bool
 	quit         bool
 	mutex        sync.Mutex
+	outputMutex  sync.Mutex
 }
 
 type CommandStatus int
@@ -88,6 +89,8 @@ func NewPrompt(ps1 string, reader *bufio.Reader, writer *bufio.Writer) *Prompt {
 }
 
 func (p *Prompt) output(format string, a ...interface{}) {
+	p.outputMutex.Lock()
+	defer p.outputMutex.Unlock()
 	if p.w == nil {
 		return
 	}
