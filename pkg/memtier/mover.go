@@ -25,6 +25,7 @@ type MoverTask struct {
 
 type Mover struct {
 	mutex         sync.Mutex
+	running       bool
 	tasks         []*MoverTask
 	config        *MoverConfig
 	toTaskHandler chan taskHandlerCmd
@@ -50,7 +51,7 @@ const (
 
 func NewMover() *Mover {
 	return &Mover{
-		toTaskHandler: nil,
+		toTaskHandler: make(chan taskHandlerCmd, 8),
 	}
 }
 
@@ -99,14 +100,16 @@ func (m *Mover) GetConfigJson() string {
 }
 
 func (m *Mover) Start() error {
+	m.mutex.Lock()
 	if m.config == nil {
+		m.mutex.Unlock()
 		if err := m.SetConfigJson(moverDefaults); err != nil {
 			return fmt.Errorf("start failed on default configuration error: %w", err)
 		}
+		m.mutex.Lock()
 	}
-	m.mutex.Lock()
-	if m.toTaskHandler == nil {
-		m.toTaskHandler = make(chan taskHandlerCmd, 8)
+	if !m.running {
+		m.running = true
 		go m.taskHandler()
 	}
 	m.mutex.Unlock()
@@ -116,25 +119,18 @@ func (m *Mover) Start() error {
 func (m *Mover) Stop() {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	if m.toTaskHandler != nil {
+	if m.running {
+		m.running = false
 		m.toTaskHandler <- thQuit
 	}
 }
 
 func (m *Mover) Pause() {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	if m.toTaskHandler != nil {
-		m.toTaskHandler <- thPause
-	}
+	m.toTaskHandler <- thPause
 }
 
 func (m *Mover) Continue() {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	if m.toTaskHandler != nil {
-		m.toTaskHandler <- thContinue
-	}
+	m.toTaskHandler <- thContinue
 }
 
 func (m *Mover) Tasks() []*MoverTask {
@@ -152,9 +148,6 @@ func (m *Mover) AddTask(task *MoverTask) {
 	stats.Store(StatsHeartbeat{"mover.AddTask"})
 	m.mutex.Lock()
 	m.tasks = append(m.tasks, task)
-	// m.mutex must be unlocked before using the channel,
-	// otherwise taskHandler may never read the channel
-	// because it is waiting for the lock.
 	m.mutex.Unlock()
 	m.toTaskHandler <- thContinue
 }
@@ -173,8 +166,6 @@ func (m *Mover) taskHandler() {
 	defer func() {
 		m.mutex.Lock()
 		defer m.mutex.Unlock()
-		close(m.toTaskHandler)
-		m.toTaskHandler = nil
 		log.Debugf("Mover: offline\n")
 	}()
 	for {
@@ -189,13 +180,13 @@ func (m *Mover) taskHandler() {
 	busyloop:
 		for {
 			stats.Store(StatsHeartbeat{"mover.taskHandler"})
-			// handle tasks
-			task := m.popTask()
+			// handle tasks, get all moving related attributes with single lock
+			task, intervalMs, bandwidth := m.popTask()
 			if task == nil {
 				// no more tasks, back to blocking reads
 				break
 			}
-			if ts := m.handleTask(task); ts == tsContinue {
+			if ts := m.handleTask(task, intervalMs, bandwidth); ts == tsContinue {
 				m.mutex.Lock()
 				m.tasks = append(m.tasks, task)
 				m.mutex.Unlock()
@@ -210,13 +201,13 @@ func (m *Mover) taskHandler() {
 					break busyloop
 				}
 			default:
-				time.Sleep(time.Duration(m.config.IntervalMs) * time.Millisecond)
+				time.Sleep(time.Duration(intervalMs) * time.Millisecond)
 			}
 		}
 	}
 }
 
-func (m *Mover) handleTask(task *MoverTask) taskStatus {
+func (m *Mover) handleTask(task *MoverTask, intervalMs, bandwidth int) taskStatus {
 	pp := task.pages
 	if task.offset > 0 {
 		pp = pp.Offset(task.offset)
@@ -233,7 +224,7 @@ func (m *Mover) handleTask(task *MoverTask) taskStatus {
 	// bandwidth is MB/s => bandwidth * 1024 is kB/s
 	// constPagesize is 4096 kB/page
 	// count is ([kB/s] / [kB/page] = [page/s]) * ([ms] / 1000 [ms/s] == [s]) = [page]
-	count := (m.config.Bandwidth * 1024 * 1024 / int(constPagesize)) * m.config.IntervalMs / 1000
+	count := (bandwidth * 1024 * 1024 / int(constPagesize)) * intervalMs / 1000
 	if count == 0 {
 		return tsBlocked
 	}
@@ -260,14 +251,17 @@ func (m *Mover) TaskCount() int {
 	return len(m.tasks)
 }
 
-func (m *Mover) popTask() *MoverTask {
+func (m *Mover) popTask() (*MoverTask, int, int) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
+	if m.config == nil {
+		return nil, 0, 0
+	}
 	taskCount := len(m.tasks)
 	if taskCount == 0 {
-		return nil
+		return nil, 0, 0
 	}
 	task := m.tasks[taskCount-1]
 	m.tasks = m.tasks[:taskCount-1]
-	return task
+	return task, m.config.IntervalMs, m.config.Bandwidth
 }

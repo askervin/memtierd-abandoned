@@ -78,18 +78,24 @@ func (w *PidWatcherProc) SetPidListener(l PidListener) {
 }
 
 func (w *PidWatcherProc) Poll() error {
+	w.mutex.Lock()
 	w.stop = false
+	w.mutex.Unlock()
 	w.loop(true)
 	return nil
 }
 
 func (w *PidWatcherProc) Start() error {
+	w.mutex.Lock()
 	w.stop = false
+	w.mutex.Unlock()
 	go w.loop(false)
 	return nil
 }
 
 func (w *PidWatcherProc) Stop() {
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
 	w.stop = true
 }
 
@@ -123,12 +129,13 @@ func (w *PidWatcherProc) loop(singleshot bool) {
 			}
 		}
 
+		w.mutex.Lock()
+
 		// If requested to stop, quit without informing listeners.
 		if w.stop {
+			w.mutex.Unlock()
 			break
 		}
-
-		w.mutex.Lock()
 
 		// Gather found pids that have not been reported.
 		newPids := []int{}
