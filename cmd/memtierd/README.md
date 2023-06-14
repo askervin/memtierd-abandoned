@@ -16,6 +16,14 @@ configurable, and often significantly larger than a single page. For
 simplicity, this document talks about "pages", but most often this
 means an address range that contains one or more pages.
 
+## Architecture
+
+Following architecture diagram shows how memtierd components
+communicate together, user and system.
+
+[![Architecture](../../docs/architecture.svg)]
+
+
 ## Build
 
 ```
@@ -44,7 +52,7 @@ See configuration samples below.
   move memory. Useful for understanding memory access time
   demographics. Example:
   ```
-  # (while :; do sleep 5; echo policy -dump accessed 0,5s,30s,10m,2h,24h,0; done) | memtierd -config memtierd-age-idlepage-trackonly.yaml
+  # (while :; do sleep 5; echo policy -dump accessed 0,5s,30s,10m,2h,24h,0; done) | memtierd -config memtierd-age-idlepage-trackonly.yaml -prompt
   ...
   memtierd> policy -dump accessed 0,5s,30s,10m,2h,24h,0
   table: time since last access
@@ -90,6 +98,10 @@ the pipe will be piped to the shell command:
 memtierd> stats | grep accessed
 ```
 
+Command mode prompt is available in automatic mode, too, when both
+`-config FILE` and `-prompt` options are given. This gives interactive
+access to statistics and running policy, tracker and mover.
+
 Example: Start moving all pages of the `meme` process to NUMA
 node 1. After 10 seconds print statistics and quit:
 
@@ -123,11 +135,9 @@ memtierd> tracker -dump raw stop
 
 ## Test environment
 
-This section describes how to use CRI Resource manager's e2e test
-framework in creating a virtual machine (VM) for testing. The test
-framework allows specifying hardware topology, including the number of
-CPUs and amount of memory in each NUMA nodes, and choosing Linux
-distribution to be installed on the VM.
+E2E test framework allows specifying hardware topology, including the
+number of CPUs and amount of memory in each NUMA nodes, and choosing
+Linux distribution to be installed on the VM.
 
 The e2e test framework uses
 [govm](https://github.com/govm-project/govm) that runs Qemu VMs in
@@ -148,12 +158,12 @@ docker containers.
 
 ### Create a VM with the topology of your interest
 
-Example of a four-NUMA-node topology with:
-- 2 NUMA nodes with 4 CPUs / 4G memory on each node
+Example of a four-NUMA-node VM with:
+- 2 NUMA nodes with 4 CPUs (2 cores with 2 hyperthreads each) / 4G memory on each node
 - 2 NUMA nodes with 0 CPUs / 2G memory on each node
 
 ```
-topology='[{"cores": 2, "mem": "4G", "nodes": 2}, {"cores":0, "mem":"2G", "nodes": 2}]' distro=opensuse-tumbleweed vm=opensuse-4422 on_vm_online='interactive; exit' test/e2e/run.sh interactive
+topology='[{"cores": 2, "threads": 2, "mem": "4G", "nodes": 2}, {"cores":0, "mem":"2G", "nodes": 2}]' distro=debian-sid vm=debian-4422 on_vm_online='interactive; exit' test/e2e/run.sh interactive
 ```
 
 See supported Linux distributions and other options with
@@ -185,8 +195,8 @@ Use `govm ls` on the host to find out the IP address of the VM where
 to install `memtierd`
 
 ```
-scp bin/memtierd opensuse@172.17.0.2:
-ssh opensuse@172.17.0.2 "sudo mv memtierd /usr/local/bin"
+scp bin/memtierd debian@172.17.0.2:
+ssh debian@172.17.0.2 "sudo mv memtierd /usr/local/bin"
 ```
 
 Optional: `meme` is a memory exerciser program, developed for
@@ -195,8 +205,8 @@ follows:
 
 ```
 make bin/meme
-scp bin/meme opensuse@172.17.0.2:
-ssh opensuse@172.17.0.2 "sudo mv meme /usr/local/bin"
+scp bin/meme debian@172.17.0.2:
+ssh debian@172.17.0.2 "sudo mv meme /usr/local/bin"
 ```
 
 ### Use memtierd in the VM
@@ -210,7 +220,7 @@ ssh opensuse@172.17.0.2 "sudo mv meme /usr/local/bin"
 
    You can use `numactl` to inspect the topology and free memory on each NUMA node
    ```
-   sudo zypper in numactl
+   sudo apt install numactl
    sudo numactl -H
    ```
 
@@ -262,19 +272,6 @@ ssh opensuse@172.17.0.2 "sudo mv meme /usr/local/bin"
 
     ```
     memtierd> stats
-    move_pages on pid: 13788
-        calls: 488
-        requested: 499712 pages (1952 MB)
-        on target: 498848 pages (1948 MB)
-            to node 0: 149664 pages (584 MB)
-            to node 2: 349184 pages (1364 MB)
-        errors: 0 pages (0 MB)
-    memory scans on pid: 13788
-        scans: 8
-        scan time: 1066 ms (133 ms/scan)
-        scanned: 13633878 pages (1704234 pages/scan, 6657 MB/scan)
-        accessed: 0 pages (0 pages/scan, 0 MB/scan)
-        written: 3297476 pages (412184 pages/scan, 1610 MB/scan)
     ```
 
 ## Policies
@@ -315,8 +312,8 @@ moved.
 memtierd> policy -create age -config {"Tracker":{"Name":"softdirty","Config":"{\"PagesInRegion\":256,\"MaxCountPerRegion\":1,\"ScanIntervalMs\":4000,\"RegionsUpdateMs\":0,\"SkipPageProb\":0,\"PagemapReadahead\":0}"},"Mover":{"IntervalMs":20,"Bandwidth":200},"Cgroups":["/sys/fs/cgroup/foobar"],"IntervalMs":5000,"IdleDurationMs":15000,"IdleNumas":[2,3],"ActiveDurationMs":10000,"ActiveNumas":[0,1]} -start
 ```
 
-Currently the age policy works with idlepage and softdirty trackers,
-but not with the damon tracker.
+The age policy works with idlepage and softdirty trackers, but not
+with the damon tracker.
 
 ### The heat policy
 
